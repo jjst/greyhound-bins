@@ -36,10 +36,11 @@ export GREYHOUND_PIN="$(pass greyhound.ie/1234567 | head -n1)"
 
 ## Usage
 
-The script carries inline [PEP 723](https://peps.python.org/pep-0723/)
-metadata, so `uv run` fetches Python and `requests` on the fly — no venv setup.
-Dependencies are pinned (with hashes) in `fetch_schedule.py.lock`, which `uv`
-picks up automatically, so every run installs exactly the audited versions:
+This is a single-file script with inline [PEP 723](https://peps.python.org/pep-0723/)
+metadata: `uv run` fetches Python and `requests` on the fly, so there is nothing
+to install and no virtualenv to manage. Dependencies are hash-pinned in
+`fetch_schedule.py.lock`, which `uv` picks up automatically whenever it sits
+next to the script, so every run installs exactly the audited versions:
 
 ```sh
 # Full rolling-year schedule as a table (default)
@@ -55,11 +56,23 @@ uv run fetch_schedule.py --format ics --weeks 6 --out bins.ics
 uv run fetch_schedule.py --format json --bins green
 ```
 
-Or install it as a command in the project environment:
+You don't need a clone. Download `fetch_schedule.py` and `fetch_schedule.py.lock`
+into any directory and run it from there, or run it straight from GitHub for a
+one-off (note this path resolves `requests` fresh and does not use the lockfile):
 
 ```sh
-uv run greyhound-bins --weeks 4
+uv run https://raw.githubusercontent.com/jjst/greyhound-bins/main/fetch_schedule.py --weeks 4
 ```
+
+If you run it regularly, a shell alias is all the "install" it needs:
+
+```sh
+alias greyhound-bins='uv run --locked /path/to/greyhound-bins/fetch_schedule.py'
+```
+
+`--locked` makes `uv` fail fast instead of re-resolving if the lockfile and the
+script's metadata ever disagree (needs a recent `uv`; older releases accept the
+flag for scripts but do not enforce it).
 
 Import the generated `.ics` via Google Calendar → **Settings → Import & export
 → Import**. Each event has a stable UID per date, so re-importing an updated
@@ -95,9 +108,9 @@ file **updates events in place rather than duplicating** them.
   your history.
 - **Generated `.ics` files** contain your personal schedule and are git-ignored.
   Treat them as private.
-- **Dependencies** are hash-pinned in `fetch_schedule.py.lock` / `uv.lock` and
-  kept current by Dependabot. Run `uv run --locked ...` in automation to fail
-  fast if the lockfile ever drifts.
+- **Dependencies** are hash-pinned in `fetch_schedule.py.lock`. To pick up
+  newer releases (e.g. after a `requests`/`urllib3` advisory), run
+  `uv lock --script fetch_schedule.py --upgrade` and commit the result.
 - Each run performs **one** login attempt. If you schedule it (cron etc.), make
   sure the credentials are correct first to avoid repeated failed logins against
   your account.

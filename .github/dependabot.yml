@@ -1,8 +1,0 @@
-version: 2
-updates:
-  # Keeps uv.lock (project) and fetch_schedule.py.lock (PEP 723 script) current
-  # and surfaces security advisories for requests/urllib3/certifi.
-  - package-ecosystem: "uv"
-    directory: "/"
-    schedule:
-      interval: "weekly"
