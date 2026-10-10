@@ -37,7 +37,9 @@ export GREYHOUND_PIN="$(pass greyhound.ie/1234567 | head -n1)"
 ## Usage
 
 The script carries inline [PEP 723](https://peps.python.org/pep-0723/)
-metadata, so `uv run` fetches Python and `requests` on the fly — no venv setup:
+metadata, so `uv run` fetches Python and `requests` on the fly — no venv setup.
+Dependencies are pinned (with hashes) in `fetch_schedule.py.lock`, which `uv`
+picks up automatically, so every run installs exactly the audited versions:
 
 ```sh
 # Full rolling-year schedule as a table (default)
@@ -80,6 +82,25 @@ file **updates events in place rather than duplicating** them.
 | `--no-emoji` | Plain-text titles without bin-colour emoji |
 | `--calendar-name NAME` | `.ics` calendar name (default: `Bin Collection`) |
 | `--uid-prefix PREFIX` | Prefix for event UIDs (default: `greyhound`) |
+
+## Security notes
+
+- **What leaves your machine:** a single HTTPS session to `app.greyhound.ie`
+  carrying your account number + PIN in the login form, exactly as the Greyhound
+  app does. Nothing is sent anywhere else, and no session cookie or credential
+  is written to disk.
+- **Credentials** are only ever read from `GREYHOUND_ACCOUNT` / `GREYHOUND_PIN`.
+  They are never logged or included in error messages. Prefer a secret manager
+  (e.g. `pass`, as above) over typing the PIN into a shell line that ends up in
+  your history.
+- **Generated `.ics` files** contain your personal schedule and are git-ignored.
+  Treat them as private.
+- **Dependencies** are hash-pinned in `fetch_schedule.py.lock` / `uv.lock` and
+  kept current by Dependabot. Run `uv run --locked ...` in automation to fail
+  fast if the lockfile ever drifts.
+- Each run performs **one** login attempt. If you schedule it (cron etc.), make
+  sure the credentials are correct first to avoid repeated failed logins against
+  your account.
 
 ## Notes
 

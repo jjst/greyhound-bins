@@ -116,10 +116,25 @@ def fetch_collection_days(account: str, pin: str) -> dict[str, list[str]]:
         types: set[str] = set()
         for entry in entries:
             for wt in entry.get("waste_types", []):
-                types.add(wt.strip().upper())
+                wt = _clean_bin_type(wt)
+                if wt:
+                    types.add(wt)
         if types:
             out[date_str] = sorted(types)
     return dict(sorted(out.items()))
+
+
+def _clean_bin_type(value: object) -> str:
+    """Normalise a bin-type string from the portal to a safe, printable token.
+
+    Unknown types are passed through to the output (table / JSON / ICS), so
+    strip anything non-printable (control chars, CR/LF, terminal escapes) and
+    cap the length rather than trusting the remote payload verbatim.
+    """
+    if not isinstance(value, str):
+        return ""
+    cleaned = "".join(ch for ch in value if ch.isprintable())
+    return cleaned.strip().upper()[:32]
 
 
 def event_title(types: list[str], emoji: bool, style: str = "collection") -> str:
@@ -180,9 +195,16 @@ def build_description(date_str: str, types: list[str]) -> str:
 
 
 def ics_escape(text: str) -> str:
-    """Escape a text value per RFC 5545 (backslash, comma, semicolon, newline)."""
+    """Escape a text value per RFC 5545 (backslash, comma, semicolon, newline).
+
+    Carriage returns are normalised away first: a raw CR/CRLF inside a value
+    would terminate the content line and let the remainder be parsed as a new
+    property (ICS injection), so it must never reach the output verbatim.
+    """
     return (
-        text.replace("\\", "\\\\")
+        text.replace("\r\n", "\n")
+        .replace("\r", "\n")
+        .replace("\\", "\\\\")
         .replace(",", "\\,")
         .replace(";", "\\;")
         .replace("\n", "\\n")
@@ -337,7 +359,7 @@ def main() -> int:
             return datetime.strptime(val, "%Y-%m-%d").date()
         except ValueError:
             print(f"error: {flag} must be YYYY-MM-DD (got {val!r})", file=sys.stderr)
-            raise SystemExit(2)
+            raise SystemExit(2) from None
 
     lo = parse_date(args.start, "--from") if args.start else None
     hi = parse_date(args.end, "--to") if args.end else None
