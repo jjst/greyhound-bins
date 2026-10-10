@@ -36,11 +36,10 @@ export GREYHOUND_PIN="$(pass greyhound.ie/1234567 | head -n1)"
 
 ## Usage
 
-This is a single-file script with inline [PEP 723](https://peps.python.org/pep-0723/)
-metadata: `uv run` fetches Python and `requests` on the fly, so there is nothing
-to install and no virtualenv to manage. Dependencies are hash-pinned in
-`fetch_schedule.py.lock`, which `uv` picks up automatically whenever it sits
-next to the script, so every run installs exactly the audited versions:
+The script carries inline [PEP 723](https://peps.python.org/pep-0723/)
+metadata, so `uv run` fetches Python and `requests` on the fly — no venv setup.
+Dependencies are hash-pinned in `fetch_schedule.py.lock`, which `uv` picks up
+automatically:
 
 ```sh
 # Full rolling-year schedule as a table (default)
@@ -55,24 +54,6 @@ uv run fetch_schedule.py --format ics --weeks 6 --out bins.ics
 # Only green-bin days, as JSON
 uv run fetch_schedule.py --format json --bins green
 ```
-
-You don't need a clone. Download `fetch_schedule.py` and `fetch_schedule.py.lock`
-into any directory and run it from there, or run it straight from GitHub for a
-one-off (note this path resolves `requests` fresh and does not use the lockfile):
-
-```sh
-uv run https://raw.githubusercontent.com/jjst/greyhound-bins/main/fetch_schedule.py --weeks 4
-```
-
-If you run it regularly, a shell alias is all the "install" it needs:
-
-```sh
-alias greyhound-bins='uv run --locked /path/to/greyhound-bins/fetch_schedule.py'
-```
-
-`--locked` makes `uv` fail fast instead of re-resolving if the lockfile and the
-script's metadata ever disagree (needs a recent `uv`; older releases accept the
-flag for scripts but do not enforce it).
 
 Import the generated `.ics` via Google Calendar → **Settings → Import & export
 → Import**. Each event has a stable UID per date, so re-importing an updated
@@ -98,22 +79,12 @@ file **updates events in place rather than duplicating** them.
 
 ## Security notes
 
-- **What leaves your machine:** a single HTTPS session to `app.greyhound.ie`
-  carrying your account number + PIN in the login form, exactly as the Greyhound
-  app does. Nothing is sent anywhere else, and no session cookie or credential
-  is written to disk.
-- **Credentials** are only ever read from `GREYHOUND_ACCOUNT` / `GREYHOUND_PIN`.
-  They are never logged or included in error messages. Prefer a secret manager
-  (e.g. `pass`, as above) over typing the PIN into a shell line that ends up in
-  your history.
-- **Generated `.ics` files** contain your personal schedule and are git-ignored.
-  Treat them as private.
-- **Dependencies** are hash-pinned in `fetch_schedule.py.lock`. To pick up
-  newer releases (e.g. after a `requests`/`urllib3` advisory), run
-  `uv lock --script fetch_schedule.py --upgrade` and commit the result.
-- Each run performs **one** login attempt. If you schedule it (cron etc.), make
-  sure the credentials are correct first to avoid repeated failed logins against
-  your account.
+- The only network traffic is one HTTPS login + fetch against `app.greyhound.ie`,
+  as the Greyhound app does. Credentials come from the environment and are never
+  logged, echoed in errors, or written to disk.
+- Each run is a single login attempt, so a cron job with stale credentials will
+  repeatedly fail against your account. Check them before scheduling.
+- To refresh pinned dependencies: `uv lock --script fetch_schedule.py --upgrade`.
 
 ## Notes
 
