@@ -7,9 +7,9 @@ into Google Calendar (or any calendar app).
 Greyhound's customer portal (`app.greyhound.ie`, the same backend their mobile
 app wraps) embeds the full rolling-year collection calendar as JSON once you log
 in. This script logs in with your account number + PIN, reads that JSON, and
-renders it. No PDF parsing, no scraping of coordinates.
+renders it.
 
-The login/parse approach is adapted from the Home Assistant
+Acknowledgements: the login/parse approach is adapted from the Home Assistant
 [`waste_collection_schedule`](https://github.com/mampfes/hacs_waste_collection_schedule)
 project (`greyhound_ie.py` source).
 
