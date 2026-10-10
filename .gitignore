@@ -1,0 +1,12 @@
+# Generated calendar output (contains your personal collection schedule)
+*.ics
+
+# Credentials / environment
+.env
+.envrc
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
