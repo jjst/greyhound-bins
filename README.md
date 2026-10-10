@@ -47,7 +47,7 @@ uv run fetch_schedule.py --format ics --weeks 6 --out bins.ics
 # Only green-bin days, as JSON
 uv run fetch_schedule.py --format json --bins green
 
-# For extra flags and options (custom output type, reminder configuration, bin type inclusion/exclusion...
+# All other options:
 uv run fetch_schedule.py --help
 ```
 
