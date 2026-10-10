@@ -37,7 +37,9 @@ export GREYHOUND_PIN="$(pass greyhound.ie/1234567 | head -n1)"
 ## Usage
 
 The script carries inline [PEP 723](https://peps.python.org/pep-0723/)
-metadata, so `uv run` fetches Python and `requests` on the fly — no venv setup:
+metadata, so `uv run` fetches Python and `requests` on the fly — no venv setup.
+Dependencies are hash-pinned in `fetch_schedule.py.lock`, which `uv` picks up
+automatically:
 
 ```sh
 # Full rolling-year schedule as a table (default)
@@ -51,12 +53,6 @@ uv run fetch_schedule.py --format ics --weeks 6 --out bins.ics
 
 # Only green-bin days, as JSON
 uv run fetch_schedule.py --format json --bins green
-```
-
-Or install it as a command in the project environment:
-
-```sh
-uv run greyhound-bins --weeks 4
 ```
 
 Import the generated `.ics` via Google Calendar → **Settings → Import & export
@@ -80,6 +76,15 @@ file **updates events in place rather than duplicating** them.
 | `--no-emoji` | Plain-text titles without bin-colour emoji |
 | `--calendar-name NAME` | `.ics` calendar name (default: `Bin Collection`) |
 | `--uid-prefix PREFIX` | Prefix for event UIDs (default: `greyhound`) |
+
+## Security notes
+
+- The only network traffic is one HTTPS login + fetch against `app.greyhound.ie`,
+  as the Greyhound app does. Credentials come from the environment and are never
+  logged, echoed in errors, or written to disk.
+- Each run is a single login attempt, so a cron job with stale credentials will
+  repeatedly fail against your account. Check them before scheduling.
+- To refresh pinned dependencies: `uv lock --script fetch_schedule.py --upgrade`.
 
 ## Notes
 
