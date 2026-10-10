@@ -20,19 +20,12 @@ project (`greyhound_ie.py` source).
 
 ## Credentials
 
-Credentials are read from the environment — never hard-coded:
+Credentials are read from the environment:
 
 - `GREYHOUND_ACCOUNT` — your account / customer number
 - `GREYHOUND_PIN` — your PIN
 
 These are the same details you use to sign into the Greyhound app.
-
-If you keep them in [`pass`](https://www.passwordstore.org/):
-
-```sh
-export GREYHOUND_ACCOUNT=1234567
-export GREYHOUND_PIN="$(pass greyhound.ie/1234567 | head -n1)"
-```
 
 ## Usage
 
@@ -53,29 +46,14 @@ uv run fetch_schedule.py --format ics --weeks 6 --out bins.ics
 
 # Only green-bin days, as JSON
 uv run fetch_schedule.py --format json --bins green
+
+# For extra flags and options (custom output type, reminder configuration, bin type inclusion/exclusion...
+uv run fetch_schedule.py --help
 ```
 
 Import the generated `.ics` via Google Calendar → **Settings → Import & export
 → Import**. Each event has a stable UID per date, so re-importing an updated
 file **updates events in place rather than duplicating** them.
-
-## Options
-
-| Flag | Description |
-|------|-------------|
-| `--format {table,json,ics}` | Output format (default: `table`) |
-| `--out FILE` | Write to a file instead of stdout |
-| `--from YYYY-MM-DD` | Only collections on/after this date |
-| `--to YYYY-MM-DD` | Only collections on/before this date |
-| `--weeks N` | Only the next N weeks (from `--from`, or today) |
-| `--bins LIST` | Comma-separated types to include, e.g. `green,brown` |
-| `--no-reminder` | Omit the reminder/alarm from `.ics` events |
-| `--reminder-time HH:MM` | Reminder clock time (default: `18:00`) |
-| `--reminder-days-before N` | Days before collection to remind (default: `1`) |
-| `--reminder-method {popup,email}` | Reminder delivery (default: `popup`) |
-| `--no-emoji` | Plain-text titles without bin-colour emoji |
-| `--calendar-name NAME` | `.ics` calendar name (default: `Bin Collection`) |
-| `--uid-prefix PREFIX` | Prefix for event UIDs (default: `greyhound`) |
 
 ## Security notes
 
@@ -91,4 +69,3 @@ file **updates events in place rather than duplicating** them.
 - The portal returns a ~12-month rolling window, so re-run roughly yearly to
   refresh.
 - Bin types seen: `GREEN`, `BLACK`, `BROWN` (a date can have more than one).
-- Generated `.ics` files are git-ignored — they contain your personal schedule.
