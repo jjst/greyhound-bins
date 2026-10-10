@@ -172,8 +172,9 @@ def build_description(date_str: str, types: list[str]) -> str:
         )
     lines.append("")
     lines.append(
-        "Auto-generated from Greyhound (greyhound.ie). Re-importing the bins "
-        "calendar updates this event in place, so avoid editing by hand."
+        "Auto-generated from Greyhound (greyhound.ie) via "
+        "https://github.com/jjst/greyhound-bins. Re-importing the bins calendar "
+        "updates this event in place, so avoid editing by hand."
     )
     return "\n".join(lines)
 
