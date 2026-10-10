@@ -40,6 +40,12 @@ COLLECTION_URL = "https://app.greyhound.ie/collection/collection_calendar"
 BIN_LABEL = {"GREEN": "🟢 Green", "BLACK": "⚫ Black", "BROWN": "🟤 Brown"}
 BIN_WORD = {"GREEN": "Green", "BLACK": "Black", "BROWN": "Brown"}
 BIN_EMOJI = {"GREEN": "🟢", "BLACK": "⚫", "BROWN": "🟤"}
+BIN_PURPOSE = {
+    "GREEN": "mixed dry recycling",
+    "BLACK": "general / residual waste",
+    "BROWN": "organic (food & garden) waste",
+}
+BIN_MARKER = "🗑️"  # constant lead glyph so bin events read as a series
 
 
 class GreyhoundError(Exception):
@@ -116,15 +122,92 @@ def fetch_collection_days(account: str, pin: str) -> dict[str, list[str]]:
     return dict(sorted(out.items()))
 
 
-def event_title(types: list[str], emoji: bool) -> str:
-    summary = " + ".join(BIN_WORD.get(t, t.title()) for t in types) + " bin"
-    if len(types) > 1:
-        summary += "s"
-    summary += " out"
+def event_title(types: list[str], emoji: bool, style: str = "collection") -> str:
+    """Build the event summary.
+
+    style="collection" (default): time-neutral fact, e.g.
+        "🗑️🟢 Green bin collection" / "🗑️⚫🟤 Black + Brown bin collection"
+        / "🗑️⚫🟤🟢 All bins collection".
+    style="action": the older imperative, e.g. "🟢 Green bin out".
+    With emoji, the title always leads with 🗑️ (collection style) so bin
+    events read as a recognizable series.
+    """
+    words = [BIN_WORD.get(t, t.title()) for t in types]
+    if style == "action":
+        summary = " + ".join(words) + (" bins" if len(types) > 1 else " bin") + " out"
+        if emoji:
+            return f"{''.join(BIN_EMOJI.get(t, '') for t in types)} {summary}"
+        return summary
+
+    # collection style
+    if len(types) >= 3:
+        summary = "All bins collection"
+    else:
+        summary = " + ".join(words) + " bin collection"
     if emoji:
-        glyphs = "".join(BIN_EMOJI.get(t, "") for t in types)
+        glyphs = BIN_MARKER + "".join(BIN_EMOJI.get(t, "") for t in types)
         return f"{glyphs} {summary}"
     return summary
+
+
+def build_description(date_str: str, types: list[str]) -> str:
+    """Plain multi-line event description: collection date, the action with
+    its real timing, and what each bin is for."""
+    dt = datetime.strptime(date_str, "%Y-%m-%d").date()
+    when = f"{dt:%a %d %b %Y}"
+    lines = [f"Collection: {when}."]
+    if len(types) == 1:
+        lines.append(
+            f"Put the {BIN_WORD.get(types[0], types[0].title()).upper()} bin out "
+            f"before 6am (the evening before is fine)."
+        )
+    else:
+        lines.append("Put these bins out before 6am (the evening before is fine):")
+    lines.append("")
+    lines.append("What goes in:")
+    for t in types:
+        lines.append(
+            f"  {BIN_EMOJI.get(t, '')} {BIN_WORD.get(t, t.title())} "
+            f"· {BIN_PURPOSE.get(t, 'waste')}"
+        )
+    lines.append("")
+    lines.append(
+        "Auto-generated from Greyhound (greyhound.ie). Re-importing the bins "
+        "calendar updates this event in place, so avoid editing by hand."
+    )
+    return "\n".join(lines)
+
+
+def ics_escape(text: str) -> str:
+    """Escape a text value per RFC 5545 (backslash, comma, semicolon, newline)."""
+    return (
+        text.replace("\\", "\\\\")
+        .replace(",", "\\,")
+        .replace(";", "\\;")
+        .replace("\n", "\\n")
+    )
+
+
+def ics_fold(line: str) -> str:
+    """Fold a content line to <=75 octets, continuing with CRLF + space.
+
+    Folding is done on UTF-8 byte boundaries so multi-byte chars stay intact.
+    """
+    raw = line.encode("utf-8")
+    if len(raw) <= 75:
+        return line
+    chunks = []
+    start = 0
+    limit = 75
+    while start < len(raw):
+        end = min(start + limit, len(raw))
+        # don't split a multi-byte UTF-8 sequence: back off to a boundary
+        while end < len(raw) and (raw[end] & 0xC0) == 0x80:
+            end -= 1
+        chunks.append(raw[start:end])
+        start = end
+        limit = 74  # continuation lines carry a leading space
+    return "\r\n ".join(c.decode("utf-8") for c in chunks)
 
 
 def build_ics(
@@ -136,6 +219,7 @@ def build_ics(
     cal_name: str = "Bin Collection",
     uid_prefix: str = "greyhound",
     emoji: bool = True,
+    title_style: str = "collection",
 ) -> str:
     """Build an iCalendar feed: one all-day event per collection day.
 
@@ -157,35 +241,37 @@ def build_ics(
         "PRODID:-//greyhound-bins//EN",
         "CALSCALE:GREGORIAN",
         "METHOD:PUBLISH",
-        f"X-WR-CALNAME:{cal_name}",
+        f"X-WR-CALNAME:{ics_escape(cal_name)}",
     ]
     for d, types in days.items():
         dt = datetime.strptime(d, "%Y-%m-%d").date()
         compact = dt.strftime("%Y%m%d")
         end = (dt + timedelta(days=1)).strftime("%Y%m%d")
-        title = event_title(types, emoji)
-        plain = event_title(types, emoji=False)
+        title = event_title(types, emoji, title_style)
+        plain = event_title(types, emoji=False, style=title_style)
+        description = build_description(d, types)
         lines += [
             "BEGIN:VEVENT",
             f"UID:{uid_prefix}-{compact}@greyhound-bins",
             f"DTSTAMP:{stamp}",
             f"DTSTART;VALUE=DATE:{compact}",
             f"DTEND;VALUE=DATE:{end}",
-            f"SUMMARY:{title}",
+            f"SUMMARY:{ics_escape(title)}",
+            f"DESCRIPTION:{ics_escape(description)}",
             "TRANSP:TRANSPARENT",
         ]
         if reminder:
             lines += [
                 "BEGIN:VALARM",
                 f"ACTION:{action}",
-                f"SUMMARY:{plain}",
-                f"DESCRIPTION:{plain} (present before 6am)",
+                f"SUMMARY:{ics_escape(plain)}",
+                f"DESCRIPTION:{ics_escape(plain)}",
                 f"TRIGGER:{trigger}",
                 "END:VALARM",
             ]
         lines.append("END:VEVENT")
     lines.append("END:VCALENDAR")
-    return "\r\n".join(lines) + "\r\n"
+    return "\r\n".join(ics_fold(ln) for ln in lines) + "\r\n"
 
 
 def main() -> int:
@@ -213,8 +299,12 @@ def main() -> int:
                      help="reminder delivery method (default: popup)")
 
     pres = ap.add_argument_group("presentation options")
+    pres.add_argument("--title-style", choices=["collection", "action"],
+                      default="collection",
+                      help="event title wording: 'collection' (default, e.g. "
+                           "'Green bin collection') or 'action' ('Green bin out')")
     pres.add_argument("--no-emoji", action="store_true",
-                      help="plain-text titles without bin-colour emoji")
+                      help="plain-text titles without bin emoji")
     pres.add_argument("--calendar-name", default="Bin Collection", metavar="NAME",
                       help="ics calendar name (X-WR-CALNAME; default: 'Bin Collection')")
     pres.add_argument("--uid-prefix", default="greyhound", metavar="PREFIX",
@@ -307,6 +397,7 @@ def main() -> int:
                 cal_name=args.calendar_name,
                 uid_prefix=args.uid_prefix,
                 emoji=not args.no_emoji,
+                title_style=args.title_style,
             )
         if args.out:
             with open(args.out, "w", encoding="utf-8") as fh:
